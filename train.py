@@ -14,6 +14,7 @@ import torch.optim as optim
 from utility import Datasets
 from models.MultiCBR import MultiCBR
 from models.LightGCN import LightGCN
+from models.DualLightGCN import DualLightGCN
 
 
 def get_cmd():
@@ -22,6 +23,7 @@ def get_cmd():
     parser.add_argument("-g", "--gpu", default="0", type=str, help="which gpu to use")
     parser.add_argument("-d", "--dataset", default="NetEase", type=str, help="which dataset to use, options: NetEase, iFashion")
     parser.add_argument("-m", "--model", default="MultiCBR", type=str, help="which model to use, options: MultiCBR")
+    parser.add_argument("-s", "--score_mlp", default=0, type=int, help="whether to use mlp score, 0: dot, 1: mlp")
     parser.add_argument("-i", "--info", default="", type=str, help="any auxilary info that will be appended to the log file name")
     args = parser.parse_args()
 
@@ -35,7 +37,7 @@ def main():
     paras = get_cmd().__dict__
     dataset_name = paras["dataset"]
 
-    assert paras["model"] in ["MultiCBR", "LightGCN"], "Pls select models from: MultiCBR, LightGCN"
+    assert paras["model"] in ["MultiCBR", "LightGCN", "DualLightGCN"], "Pls select models from: MultiCBR, LightGCN, DualLightGCN"
 
     if "_" in dataset_name:
         conf = conf[dataset_name.split("_")[0]]
@@ -47,6 +49,7 @@ def main():
 
     conf["gpu"] = paras["gpu"]
     conf["info"] = paras["info"]
+    conf["score_mlp"] = paras["score_mlp"]
 
     conf["num_users"] = dataset.num_users
     conf["num_bundles"] = dataset.num_bundles
@@ -113,6 +116,8 @@ def main():
             model = MultiCBR(conf, dataset.graphs).to(device)
         elif conf['model'] == 'LightGCN':
             model = LightGCN(conf, dataset.graphs).to(device)
+        elif conf['model'] == 'DualLightGCN':
+            model = DualLightGCN(conf, dataset.graphs).to(device)
         else:
             raise ValueError("Unimplemented model %s" % (conf["model"]))
 
