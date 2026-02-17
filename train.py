@@ -16,6 +16,7 @@ from models.MultiCBR import MultiCBR
 from models.LightGCN import LightGCN
 from models.DualLightGCN import DualLightGCN
 from models.TripleViewLightGCN import TripleViewLightGCN
+from models.CoreFringeSynergy import CoreFringeSynergy
 
 
 def get_cmd():
@@ -25,6 +26,8 @@ def get_cmd():
     parser.add_argument("-d", "--dataset", default="NetEase", type=str, help="which dataset to use, options: NetEase, iFashion")
     parser.add_argument("-m", "--model", default="MultiCBR", type=str, help="which model to use, options: MultiCBR")
     parser.add_argument("-s", "--score_mlp", default=0, type=int, help="whether to use mlp score, 0: dot, 1: mlp")
+    parser.add_argument("-k", "--core_k", default=3, type=int, help="number of core items")
+    parser.add_argument("-r", "--rerank_topM", default=300, type=int, help="number of candidates for reranking")
     parser.add_argument("-i", "--info", default="", type=str, help="any auxilary info that will be appended to the log file name")
     args = parser.parse_args()
 
@@ -38,7 +41,7 @@ def main():
     paras = get_cmd().__dict__
     dataset_name = paras["dataset"]
 
-    assert paras["model"] in ["MultiCBR", "LightGCN", "DualLightGCN", "TripleViewLightGCN"], "Pls select models from: MultiCBR, LightGCN, DualLightGCN, TripleViewLightGCN"
+    assert paras["model"] in ["MultiCBR", "LightGCN", "DualLightGCN", "TripleViewLightGCN", "CoreFringeSynergy"], "Pls select models from: MultiCBR, LightGCN, DualLightGCN, TripleViewLightGCN, CoreFringeSynergy"
 
     if "_" in dataset_name:
         conf = conf[dataset_name.split("_")[0]]
@@ -51,6 +54,8 @@ def main():
     conf["gpu"] = paras["gpu"]
     conf["info"] = paras["info"]
     conf["score_mlp"] = paras["score_mlp"]
+    conf["core_k"] = paras["core_k"]
+    conf["rerank_topM"] = paras["rerank_topM"]
 
     conf["num_users"] = dataset.num_users
     conf["num_bundles"] = dataset.num_bundles
@@ -121,6 +126,8 @@ def main():
             model = DualLightGCN(conf, dataset.graphs).to(device)
         elif conf['model'] == 'TripleViewLightGCN':
             model = TripleViewLightGCN(conf, dataset.graphs).to(device)
+        elif conf['model'] == 'CoreFringeSynergy':
+            model = CoreFringeSynergy(conf, dataset.graphs).to(device)
         else:
             raise ValueError("Unimplemented model %s" % (conf["model"]))
 
