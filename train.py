@@ -15,6 +15,7 @@ from utility import Datasets
 from models.MultiCBR import MultiCBR
 from models.LightGCN import LightGCN
 from models.DualLightGCN import DualLightGCN
+from models.TripleViewLightGCN import TripleViewLightGCN
 
 
 def get_cmd():
@@ -37,7 +38,7 @@ def main():
     paras = get_cmd().__dict__
     dataset_name = paras["dataset"]
 
-    assert paras["model"] in ["MultiCBR", "LightGCN", "DualLightGCN"], "Pls select models from: MultiCBR, LightGCN, DualLightGCN"
+    assert paras["model"] in ["MultiCBR", "LightGCN", "DualLightGCN", "TripleViewLightGCN"], "Pls select models from: MultiCBR, LightGCN, DualLightGCN, TripleViewLightGCN"
 
     if "_" in dataset_name:
         conf = conf[dataset_name.split("_")[0]]
@@ -118,6 +119,8 @@ def main():
             model = LightGCN(conf, dataset.graphs).to(device)
         elif conf['model'] == 'DualLightGCN':
             model = DualLightGCN(conf, dataset.graphs).to(device)
+        elif conf['model'] == 'TripleViewLightGCN':
+            model = TripleViewLightGCN(conf, dataset.graphs).to(device)
         else:
             raise ValueError("Unimplemented model %s" % (conf["model"]))
 
