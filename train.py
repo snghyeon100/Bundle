@@ -28,6 +28,8 @@ def get_cmd():
     parser.add_argument("-s", "--score_mlp", default=0, type=int, help="whether to use mlp score, 0: dot, 1: mlp")
     parser.add_argument("-k", "--core_k", default=3, type=int, help="number of core items")
     parser.add_argument("-r", "--rerank_topM", default=300, type=int, help="number of candidates for reranking")
+    parser.add_argument("--max_items_per_bundle", default=200, type=int, help="max items per bundle (cap for memory)")
+    parser.add_argument("--candidate_chunk", default=50, type=int, help="candidate chunk size for reranking")
     parser.add_argument("-i", "--info", default="", type=str, help="any auxilary info that will be appended to the log file name")
     args = parser.parse_args()
 
@@ -56,6 +58,8 @@ def main():
     conf["score_mlp"] = paras["score_mlp"]
     conf["core_k"] = paras["core_k"]
     conf["rerank_topM"] = paras["rerank_topM"]
+    conf["max_items_per_bundle"] = paras["max_items_per_bundle"]
+    conf["candidate_chunk"] = paras["candidate_chunk"]
 
     conf["num_users"] = dataset.num_users
     conf["num_bundles"] = dataset.num_bundles
@@ -255,11 +259,13 @@ def test(model, dataloader, conf):
 
     device = conf["device"]
     model.eval()
-    rs = model.get_multi_modal_representations(test=True)
-    for users, ground_truth_u_b, train_mask_u_b in dataloader:
-        pred_b = model.evaluate(rs, users.to(device))
-        pred_b -= 1e8 * train_mask_u_b.to(device)
-        tmp_metrics = get_metrics(tmp_metrics, ground_truth_u_b.to(device), pred_b, conf["topk"])
+    
+    with torch.no_grad():
+        rs = model.get_multi_modal_representations(test=True)
+        for users, ground_truth_u_b, train_mask_u_b in dataloader:
+            pred_b = model.evaluate(rs, users.to(device))
+            pred_b -= 1e8 * train_mask_u_b.to(device)
+            tmp_metrics = get_metrics(tmp_metrics, ground_truth_u_b.to(device), pred_b, conf["topk"])
 
     metrics = {}
     for m, topk_res in tmp_metrics.items():

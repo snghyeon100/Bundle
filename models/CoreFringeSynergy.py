@@ -60,6 +60,8 @@ class CoreFringeSynergy(nn.Module):
         # Hyperparameters
         self.core_k = self.conf.get("core_k", 3)
         self.rerank_topM = self.conf.get("rerank_topM", 300)
+        self.max_items_per_bundle = self.conf.get("max_items_per_bundle", 200)
+        self.candidate_chunk = self.conf.get("candidate_chunk", 50)
 
         # MLPs
         # Core Logit: [r_UI, r_BI] -> scalar
@@ -111,7 +113,12 @@ class CoreFringeSynergy(nn.Module):
         
         # Calculate max degree
         degrees = np.diff(self.bi_graph.indptr)
-        max_degree = degrees.max()
+        max_degree_original = int(degrees.max())
+        
+        # Cap max_degree to prevent OOM from outliers
+        max_degree = min(max_degree_original, self.max_items_per_bundle)
+        
+        print(f"[BI Lookup] Original max_degree: {max_degree_original}, Capped: {max_degree}, Avg: {degrees.mean():.2f}")
         
         # Create padded tensor
         # Fill with num_items (which is an out-of-bound index, serving as padding)
@@ -122,6 +129,8 @@ class CoreFringeSynergy(nn.Module):
         for i in range(self.num_bundles):
             items = self.bi_graph.indices[self.bi_graph.indptr[i]:self.bi_graph.indptr[i+1]]
             if len(items) > 0:
+                # Truncate to max_degree
+                items = items[:max_degree]
                 self.bundle_items[i, :len(items)] = torch.from_numpy(items)
                 
         self.bundle_items = self.bundle_items.to(self.device)
@@ -374,7 +383,33 @@ class CoreFringeSynergy(nn.Module):
             # 3. Rerank Candidates
             # We call calculate_core_fringe_synergy for these (user, candidate_bundle) pairs
             
-            rerank_scores = self.calculate_core_fringe_synergy(users, top_indices, propagate_result)
+            print(f"[Evaluate] Batch {batch_size} users, Top-{topM} candidates, Candidate Chunk: {self.candidate_chunk}")
+            
+            rerank_scores_full = []
+            rerank_batch_size = 20 # Process users in batches
+            
+            for i in range(0, batch_size, rerank_batch_size):
+                end_user = min(i + rerank_batch_size, batch_size)
+                user_batch = users[i:end_user]
+                candidate_batch = top_indices[i:end_user]  # [user_batch_size, topM]
+                
+                # Chunk candidates for this user batch
+                user_batch_size = user_batch.shape[0]
+                candidate_scores_batch = []
+                
+                for j in range(0, topM, self.candidate_chunk):
+                    end_cand = min(j + self.candidate_chunk, topM)
+                    cand_chunk = candidate_batch[:, j:end_cand]  # [user_batch_size, cand_chunk_size]
+                    
+                    with torch.cuda.amp.autocast(dtype=torch.float16):
+                        chunk_scores = self.calculate_core_fringe_synergy(user_batch, cand_chunk, propagate_result)
+                    candidate_scores_batch.append(chunk_scores)
+                
+                # Concat candidate chunks for this user batch
+                user_batch_scores = torch.cat(candidate_scores_batch, dim=1)  # [user_batch_size, topM]
+                rerank_scores_full.append(user_batch_scores)
+                
+            rerank_scores = torch.cat(rerank_scores_full, dim=0)
             # rerank_scores: [bs, topM]
             
             # Now we need to construct the full score matrix efficiently
