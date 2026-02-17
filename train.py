@@ -244,7 +244,7 @@ def test(model, dataloader, conf):
     for users, ground_truth_u_b, train_mask_u_b in dataloader:
         pred_b = model.evaluate(rs, users.to(device))
         pred_b -= 1e8 * train_mask_u_b.to(device)
-        tmp_metrics = get_metrics(tmp_metrics, ground_truth_u_b, pred_b, conf["topk"])
+        tmp_metrics = get_metrics(tmp_metrics, ground_truth_u_b.to(device), pred_b, conf["topk"])
 
     metrics = {}
     for m, topk_res in tmp_metrics.items():
@@ -291,12 +291,12 @@ def get_ndcg(pred, grd, is_hit, topk):
         return hit.sum(-1)
 
     def IDCG(num_pos, topk, device):
-        hit = torch.zeros(topk, dtype=torch.float)
+        hit = torch.zeros(topk, dtype=torch.float, device=device)
         hit[:num_pos] = 1
         return DCG(hit, topk, device)
 
     device = grd.device
-    IDCGs = torch.empty(1 + topk, dtype=torch.float)
+    IDCGs = torch.empty(1 + topk, dtype=torch.float, device=device)
     IDCGs[0] = 1  # avoid 0/0
     for i in range(1, topk + 1):
         IDCGs[i] = IDCG(i, topk, device)
