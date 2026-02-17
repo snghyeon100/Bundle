@@ -178,12 +178,15 @@ class CoreFringeSynergy(nn.Module):
         bundles: [batch_size, neg_plus_one] (in training) or [batch_size, num_candidates] (in evaluation)
         reps: tuple of embeddings from get_multi_modal_representations
         """
-        UB_u, UB_b, UI_u, UI_i, BI_b, BI_i = reps
+        UB_u, UB_b, UI_u, UI_i_rep, BI_b, BI_i_rep = reps
         
         batch_size = bundles.shape[0]
         num_candidates = bundles.shape[1]
         
         # Flatten users and bundles for processing
+        if users.dim() > 1:
+            users = users.view(-1)
+
         # users: [batch_size, num_candidates] (broadcasting user to match bundles)
         users_expanded = users.unsqueeze(1).expand(-1, num_candidates).reshape(-1)
         bundles_flat = bundles.reshape(-1)
